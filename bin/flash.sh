@@ -49,14 +49,6 @@ upgrade_prepare_dir() {
 }
 
 upgrade_done_set_flags() {
-	# tell server upgrade is finished
-	[ -f /etc/config/messaging -a -f /sbin/uci ] && {
-		/sbin/uci set /etc/config/messaging.deviceInfo.UPGRADE_STATUS_UPLOAD=0
-		/sbin/uci commit
-		klogger "messaging.deviceInfo.UPGRADE_STATUS_UPLOAD=`uci get /etc/config/messaging.deviceInfo.UPGRADE_STATUS_UPLOAD`"
-		klogger "/etc/config/messaging : `cat /etc/config/messaging`"
-	}
-
 	# update nvram setting when upgrading
 	if [ "$2" = "1" ]; then
 		nvram set restore_defaults=1
@@ -80,8 +72,11 @@ uploadUpgrade() {
     [ "1" = "`cat /proc/xiaoqiang/ft_mode`" ] && return 0
     [ "YES" != "`uci -q get xiaoqiang.common.INITTED`" ] && return 0
 
-	wanstatus=`ubus call network.interface.wan status | grep up | grep false`
-	if [ "$wanstatus" = "" ];then
+    serv_addr=`/sbin/uci get /etc/config/miwifi.server.API`
+    lanip=`uci -q get network.lan.ipaddr | awk -F"." '{print $1,$2}' OFS="."`
+    if [ "$serv_addr" != "" ];then
+        res=`nslookup $serv_addr | grep "$lanip"`
+        [ "$res" != "" ] && return
 		logger stat_points_none upgrade=start
 		[ -f /usr/sbin/StatPoints ] && /usr/sbin/StatPoints
 	fi
@@ -142,11 +137,14 @@ board_system_upgrade $filename $2 $3
 # some board may reset after system upgrade and not reach here
 # clean up
 cd /
-cap=700
-curcap=`du -sk /tmp/system_upgrade/|awk '{print $1}'`
-if [[ $curcap -gt $cap ]] ; then
-	upkernel=true
-fi
+upkernel=true
+if [ -d /tmp/system_upgrade/ ];then
+    cap=700
+    curcap=`du -sk /tmp/system_upgrade/|awk '{print $1}'`
+    if [[ 0"$curcap" -lt "$cap" ]] ; then
+	    upkernel=false
+    fi
+fi    
 
 rm -rf /tmp/system_upgrade
 

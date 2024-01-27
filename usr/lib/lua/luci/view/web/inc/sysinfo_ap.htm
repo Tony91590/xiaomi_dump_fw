@@ -15,7 +15,6 @@ local netmod = XQFunction.getnetmode()
 --3 mesh从设备  whc_re
 --0 router
 
-local capmode = XQFunction.getCAPMode()
 
 %>
 <div class="mod-upgrade">
@@ -39,13 +38,10 @@ local capmode = XQFunction.getCAPMode()
 
 <div class="mod-uploadlog">
     <div class="hd">
-        <h3><%:上传日志%></h3>
+        <h3><%:下载日志%></h3>
     </div>
     <div class="bd">
-        <div style="margin-bottom:15px;"><button type="button" id="btnUploadlog" class="btn btn-primary btn-l"><span><%:上传日志%></span></button></div>
-        <%if features["system"]["downloadlogs"] == "1" then%>
         <div><button type="button" id="btnDownloadlog" class="btn btn-primary btn-l"><span><%:下载日志%></span></button></div>
-        <%end%>
     </div>
 </div>
 
@@ -73,7 +69,8 @@ local capmode = XQFunction.getCAPMode()
 </div>
 
 
-<%if romChannel == "release" and features["system"]["i18n"] == "1"  then%>
+
+<%if netmod ~= 3 then%>
 <div class="mod-uploadlog">
     <div class="hd">
         <h3><%:设置系统语言%></h3>
@@ -88,17 +85,19 @@ local capmode = XQFunction.getCAPMode()
     </div>
 </div>
 <%end%>
-
 <div class="mod-set mod-systime">
     <div class="hd">
-        <h3><%:时区设置%></h3>
+        <h3><%:地区与时间%></h3>
     </div>
 
-    <%if netmod == 4 or capmode == 1 then%>
+    <%if netmod == 4 then%>
      <!-- 主mesh -->
     <div class="bd" id="zhumesh"  style="display:none">
         <div class="group" >
-            当前系统时间：<span id="datetiemval"></span>
+            <p>
+                <span style="font-size:16px;" id="zoneVal"></span>(<%:配置路由器时选择的地区，不支持更改%>)
+            </p>
+            <%:当前时间%>：<span id="datetiemval"></span>
         </div>
         <div class="group">
             <p id="timezoneval"></p>
@@ -110,9 +109,9 @@ local capmode = XQFunction.getCAPMode()
     <!-- 子mesh -->
     <div class="bd" id="zimesh" style="display:none">
         <div class="group">
-            <p>当前系统时间：<span id="datetiemval2"></span></p>
-            <p>当前系统时区：<span id="timezoneval2"></span></p>
-            <p>*如需修改时区，请切换到主Mesh路由进行修改，会自动同步到子Mesh路由</p>
+            <p><%:当前时间%>：<span id="datetiemval2"></span></p>
+            <p><%:当前时区%>：<span id="timezoneval2"></span></p>
+            <!-- <p>*如需修改时区，请切换到主Mesh路由进行修改，会自动同步到子Mesh路由</p> -->
         </div>
 
     </div>
@@ -120,6 +119,9 @@ local capmode = XQFunction.getCAPMode()
     <%else%>
     <div class="bd">
         <div class="group">
+            <p>
+                <span style="font-size:16px;" id="zoneVal"></span>(<%:配置路由器时选择的地区，不支持更改%>)
+            </p>
             <p id="timezoneval"></p>
             <button type="button" id="btnTimezone" class="btn btn-dft btn-m"><span><%:更改时区%></span></button>
         </div>
@@ -130,4 +132,5 @@ local capmode = XQFunction.getCAPMode()
     </div>
 
     <%end%>
+
 </div>

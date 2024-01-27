@@ -130,7 +130,7 @@ uci -q batch <<-EOF >/dev/null
     commit network
 
     set dhcp.lan.ignore=1;
-    commit dhcp
+    commit dchp
 EOF
 
     nvram set vlan1ports="$cmd_vlan1_bridgeap_port"
@@ -152,7 +152,7 @@ uci -q batch <<-EOF >/dev/null
     commit network
 
     set dhcp.lan.ignore=1;
-    commit dhcp
+    commit dchp
 EOF
     nvram set vlan1ports="$cmd_vlan1_bridgeap_port"
     nvram set vlan2ports="$cmd_vlan2_bridgeap_port"
@@ -166,6 +166,9 @@ EOF
 # Take care: used for QCA series, R3600.
 bridgeap_open_r3600() {
     echo "#######################bridgeap_open_r3600###############"
+	
+	/usr/sbin/mi_iptv.sh off
+	
 uci -q batch <<-EOF >/dev/null
     delete network.wan
 	delete network.wan_6
@@ -174,7 +177,7 @@ uci -q batch <<-EOF >/dev/null
     commit network
 
     set dhcp.lan.ignore=1;
-    commit dhcp
+    commit dchp
 EOF
     nvram set mode=AP
     nvram commit
@@ -254,6 +257,7 @@ EOF
     nvram set mode=Router
     nvram commit
 
+	/usr/sbin/mi_iptv.sh on
 }
 
 bridgeap_close_r3600_default() {
@@ -452,12 +456,11 @@ case $OPT in
         /etc/init.d/dnsmasq stop
         /usr/sbin/dhcp_apclient.sh restart
         /etc/init.d/network restart
-        /etc/init.d/wan_check restart
         /etc/init.d/dnsmasq start
         /usr/sbin/vasinfo_fw.sh off
-        /etc/init.d/trafficd restart
+        /etc/init.d/trafficd stop
         /etc/init.d/xqbc restart
-        /etc/init.d/tbusd restart
+        /etc/init.d/tbusd stop
 	/etc/init.d/xiaoqiang_sync start
         [ -f /etc/init.d/hwnat ] && /etc/init.d/hwnat off
 
@@ -465,7 +468,6 @@ case $OPT in
 
         bridgeap_plugin_restart
         [ -f /etc/init.d/minet ] && /etc/init.d/minet restart
-	[ -f /etc/init.d/cab_meshd ] && /etc/init.d/cab_meshd restart
 
         return $?
     ;;
@@ -477,17 +479,16 @@ case $OPT in
         /etc/init.d/firewall restart
         /etc/init.d/odhcpd start
         /etc/init.d/dnsmasq stop
-        /etc/init.d/network restart
         /usr/sbin/dhcp_apclient.sh restart
-        /etc/init.d/wan_check restart
-        /etc/init.d/dnsmasq restart
+        /etc/init.d/network restart
+        /etc/init.d/dnsmasq start
         /usr/sbin/vasinfo_fw.sh post_ota
         /etc/init.d/trafficd restart
         /etc/init.d/xqbc restart
 	/etc/init.d/xiaoqiang_sync stop
         /etc/init.d/tbusd start
         [ -f /etc/init.d/minet ] && /etc/init.d/minet restart
-        [ -f /etc/init.d/cab_meshd ] && /etc/init.d/cab_meshd restart
+
         [ -f /etc/init.d/hwnat ] && /etc/init.d/hwnat start
 
         bridgeap_plugin_restart

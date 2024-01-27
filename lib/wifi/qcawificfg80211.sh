@@ -504,13 +504,13 @@ load_qcawificfg80211() {
 	config_get sa_validate_sw qcawifi sa_validate_sw
 	[ -n "$sa_validate_sw" ] && update_ini_file sa_validate_sw "$sa_validate_sw"
 
-	#if [ -e /sys/firmware/devicetree/base/MP_512 ]; then
-	#	config_get enable_monitor_mode qcawifi enable_monitor_mode
-	#	if [ -n "$enable_monitor_mode" ]; then
-	#		update_ini_for_monitor_buf_ring QCA8074_i.ini
-	#		update_ini_for_monitor_buf_ring QCA8074V2_i.ini
-	#	fi
-	#fi
+	if [ -e /sys/firmware/devicetree/base/MP_512 ]; then
+		config_get enable_monitor_mode qcawifi enable_monitor_mode
+		if [ -n "$enable_monitor_mode" ]; then
+			update_ini_for_monitor_buf_ring QCA8074_i.ini
+			update_ini_for_monitor_buf_ring QCA8074V2_i.ini
+		fi
+	fi
 
 	config_get nss_wifi_olcfg qcawifi nss_wifi_olcfg
 	if [ -n "$nss_wifi_olcfg" ]; then
@@ -884,6 +884,8 @@ enable_qcawificfg80211() {
 	local recover="$2"
 	local hk_ol_num=0
 	local hwcaps
+	local bd_country_code=`bdata get CountryCode`
+	local nv_country_code=`nvram get CountryCode`
 	local board_name
 	[ -f /tmp/sysinfo/board_name ] && {
 		board_name=$(cat /tmp/sysinfo/board_name)
@@ -1065,16 +1067,25 @@ enable_qcawificfg80211() {
 			160) 
 				htmode=HT160
 			;;
-			*) 
-			    if [ "$channel" = 149 \
-                -o "$channel" = 153 \
-                -o "$channel" = 157 \
-                -o "$channel" = 161 ]; then
+			*)
+				if [ "$channel" = 149 \
+					-o "$channel" = 153 \
+					-o "$channel" = 157 \
+					-o "$channel" = 161 \
+					-o "$channel" = 100 \
+					-o "$channel" = 104 \
+					-o "$channel" = 108 \
+					-o "$channel" = 112 ]; then
 					htmode=HT80
 				else
 					htmode=HT160
 				fi
-			    if [ "$channel" = 165 ]; then
+				if [ "$nv_country_code" = "JO" \
+					-o "$nv_country_code" = "KE" \
+					-o "$nv_country_code" = "NG" ]; then
+					htmode=HT80
+				fi
+				if [ "$channel" = 165 ]; then
 					htmode=HT20
 				fi
 			;;
@@ -1778,16 +1789,6 @@ enable_qcawificfg80211() {
 				;;
 		esac
 
-		if [ $ifname == "wl13" ]; then
-			config_get_bool bindstatus "$vif" bindstatus 0
-			config_get_bool userswitch "$vif" userswitch 1
-			#解决wl13概率无法正常up的问题
-			if [ $bindstatus == 1 ] && [ $channel == 0 ]; then
-				sleep 4
-			fi
-			/usr/sbin/sysapi.firewall  miot
-		fi
-
 		[ "$nosbeacon" = 1 ] || nosbeacon=""
 		if [ -z "$recover" ] || [ "$recover" -eq "0" ]; then
 			wlanconfig "$ifname" create wlandev "$phy" wlanmode "$pmode" ${wlanaddr:+wlanaddr "$wlanaddr"} ${nosbeacon:+nosbeacon} -cfg80211
@@ -1978,19 +1979,6 @@ enable_qcawificfg80211() {
 		config_get miwifi_mesh "$vif" miwifi_mesh
 		[ -n "$miwifi_mesh" ] && iwpriv "$ifname" miwifi_mesh "${miwifi_mesh}"
 
-		config_get mesh_ver "$vif" mesh_ver
-		[ -n "$mesh_ver" ] && cfg80211tool "$ifname" mesh_ver "${mesh_ver}"
-		if [ -n "$mesh_ver" ]; then
-			local network_id=$(uci -q get xiaoqiang.common.NETWORK_ID)
-			cfg80211tool "$ifname" mesh_id "0x${network_id}"
-		fi
-
-		config_get mesh_apmac "$vif" mesh_apmac
-		[ -n "$mesh_apmac" ] && cfg80211tool "$ifname" mesh_apmac "${mesh_apmac}"
-
-		config_get mesh_aplimit "$vif" mesh_aplimit
-		[ -n "$mesh_aplimit" ] && cfg80211tool "$ifname" mesh_aplimit "${mesh_aplimit}"
-
 		config_get wds "$vif" wds
 		case "$wds" in
 			1|on|enabled)	wds=1
@@ -2033,8 +2021,11 @@ enable_qcawificfg80211() {
 		config_get bintval "$vif" bintval
 		[ -n "$bintval" ] && "$device_if" "$ifname" bintval "$bintval"
 
-		config_get_bool countryie "$vif" countryie 1
+		config_get_bool countryie "$vif" countryie 0
 		[ -n "$countryie" ] && "$device_if" "$ifname" countryie "$countryie"
+
+		config_get_bool vap_contryie "$vif" vap_contryie 0
+		[ -n "$vap_contryie" ] && "$device_if" "$ifname" vap_contryie "$vap_contryie"
 
 		config_get ppdu_duration "$device" ppdu_duration
 		[ -n "$ppdu_duration" ] && "$device_if" "$phy" ppdu_duration "${ppdu_duration}"
@@ -2044,9 +2035,6 @@ enable_qcawificfg80211() {
 
 		config_get own_ie_override "$vif" own_ie_override
 		[ -n "$own_ie_override" ] && cfg80211tool "$ifname" rsn_override 1
-
-        config_get twt_responder "$vif" twt_responder 0
-        [ -n "$twt_responder" ] && cfg80211tool "$ifname" twt_responder "$twt_responder"
 
 		config_get_bool sae "$vif" sae
 		config_get_bool owe "$vif" owe
@@ -2721,7 +2709,12 @@ enable_qcawificfg80211() {
 		config_get neighbourfilter "$vif" neighbourfilter
 		[ -n "$neighbourfilter" ] && "$device_if" "$ifname" neighbourfilter "${neighbourfilter}"
 
-		config_get athnewind "$vif" athnewind
+		netmode=`uci -q get xiaoqiang.common.NETMODE`
+		if [ -n "$netmode" -a "$netmode" = "wifiapmode" ]; then
+			config_get athnewind "$vif" athnewind 1
+		else
+			config_get athnewind "$vif" athnewind
+		fi
 		[ -n "$athnewind" ] && "$device_if" "$ifname" athnewind "$athnewind"
 
 		config_get osen "$vif" osen
@@ -2740,14 +2733,14 @@ enable_qcawificfg80211() {
 		config_get son_event_bcast qcawifi son_event_bcast
 		[ -n "$son_event_bcast" ] && "$device_if" "$ifname" son_event_bcast "${son_event_bcast}"
 
-		#config_get root_distance "$vif" root_distance
-		#[ -n "$root_distance" ] && "$device_if" "$ifname" set_whc_dist "$root_distance"
+		config_get root_distance "$vif" root_distance
+		[ -n "$root_distance" ] && "$device_if" "$ifname" set_whc_dist "$root_distance"
 
 		config_get caprssi "$vif" caprssi
 		[ -n "$caprssi" ] && "$device_if" "$ifname" caprssi "${caprssi}"
 
 		config_get_bool ap_isolation_enabled $device ap_isolation_enabled 0
-		config_get ap_isolate "$vif" ap_isolate 0
+		config_get_bool ap_isolate "$vif" isolate 0
 
 		if [ $ap_isolation_enabled -ne 0 ]; then
 			[ "$mode" = "wrap" ] && isolate=1
@@ -2812,7 +2805,8 @@ enable_qcawificfg80211() {
 		case "$mode" in
 			ap|wrap|ap_monitor|ap_smart_monitor|mesh|ap_lp_iot)
 
-				"$device_if" "$ifname" ap_bridge "$((ap_isolate^1))"
+
+				"$device_if" "$ifname" ap_bridge "$((isolate^1))"
 
 				config_get_bool l2tif "$vif" l2tif
 				[ -n "$l2tif" ] && "$device_if" "$ifname" l2tif "$l2tif"
@@ -2980,11 +2974,37 @@ enable_qcawificfg80211() {
 			max_power=30
 			wifitool "$ifname" setUnitTestCmd 67 3 16 1 1
 			iwpriv "$ifname" 11ngvhtintop 1
-			iwpriv "$ifname" enablertscts 0x21
 		else
 			max_power=30
 		fi
-
+		if [ "$bd_country_code" = "EU" ]; then
+			if [ "$bdmode" = "24G" ]; then
+				max_power=14
+			else
+				if [ "$channel" -ge 100 ]; then
+					max_power=23
+				else
+					max_power=16
+				fi
+			fi
+			if [ $ifname = "wl2" ]; then
+				max_power=13
+			fi
+		fi
+		#miwifi: reduce 3db for Brazil band1
+		if [ "$nv_country_code" = "BR" ]; then
+			if [ "$bdmode" = "5G" -a "$channel" -le 48 ]; then
+				max_power=13
+			fi
+		fi
+		#miwifi: we use band1 txpower for wifi ap mode
+		netmode=`uci get xiaoqiang.common.NETMODE`
+		if [ -n "$netmode" -a "$netmode" = "wifiapmode" -a "$bdmode" = "5G" ]; then
+			max_power=16
+			if [ "$nv_country_code" = "BR" ]; then
+				max_power=13
+			fi
+		fi
 		config_get txpwr "$device" txpwr
 		if [ "$txpwr" = "mid" ]; then
 			txpower=`expr $max_power - 1`
@@ -3002,26 +3022,6 @@ enable_qcawificfg80211() {
 			enable_rps $ifname
 		fi
 
-		local netmode=$(uci -q get xiaoqiang.common.NETMODE)
-		local backhaul_5g_ap_iface=$(uci -q get misc.backhauls.backhaul_5g_ap_iface)
-		if [ -n "$netmode" ] && [ "$netmode" = "whc_re" ]; then
-			if [ "$ifname" = "$backhaul_5g_ap_iface" ]; then
-				local hop_count=$(cat /var/run/topomon/hop_count 2>/dev/null)
-				#bring backhaul ap down on power up or hop > 1
-				#topomon will check hop status later
-				if [ -z $hop_count ] || [ $hop_count != "0" -a $hop_count != "1" ]; then
-					cfg80211tool "$ifname" mesh_aplimit 0
-				fi
-			fi
-		fi
-
-		local mesh_role=$(mesh_cmd role)
-		local ifname_5G=$(uci -q get misc.wireless.ifname_5G)
-		if [ -n "$mesh_role" ] && [ "CAP" = "$mesh_role" -o "RE" = "$mesh_role" ]; then
-			if [ "$ifname" = "$ifname_5G" -o "$ifname" = "$backhaul_5g_ap_iface" ]; then
-				wifitool "$ifname" block_acs_channel "52,56,60,64,149,153,157,161,165"
-			fi
-		fi
 
 	done
 
@@ -3031,7 +3031,7 @@ enable_qcawificfg80211() {
 	config_get primaryradio "$device" primaryradio
 	[ -n "$primaryradio" ] && "$device_if" "$phy" primaryradio "${primaryradio}"
 
-	config_get CSwOpts "$device" CSwOpts
+	config_get CSwOpts "$device" CSwOpts 5
 	[ -n "$CSwOpts" ] && "$device_if" "$phy" CSwOpts "${CSwOpts}"
 
 	if [ $disable_qrfs_wifi == 1 ] && [ -f "/lib/update_system_params.sh" ]; then
@@ -3041,21 +3041,6 @@ enable_qcawificfg80211() {
 
 	if [ $ifname = "wl2" ]; then
 		ifconfig $ifname down
-	fi
-	
-	#need to check router bind or not
-	if [ $ifname == "wl13" ] && [ $bindstatus == 0 -o $userswitch == 0 ];then
-		hostapd_cli -i wl13 -p /var/run/hostapd-wifi1 disable
-	fi
-
-	local netmode=$(uci -q get xiaoqiang.common.NETMODE)
-	if [ -n "$netmode" ] && [ "$netmode" = "whc_re" ]; then
-		local backhaul_5g_sta_iface=$(uci -q get misc.backhauls.backhaul_5g_sta_iface)
-		if [ $ifname = $backhaul_5g_sta_iface ]; then
-			if [ $(cat /var/run/topomon/bh_type) = "wired" ]; then
-				wpa_cli -p /var/run/wpa_supplicant-$ifname disable_network 0
-			fi
-		fi
 	fi
 
 	lock -u /var/run/wifilock
@@ -3186,9 +3171,6 @@ pre_qcawificfg80211() {
 			eval "type icm_teardown" >/dev/null 2>&1 && icm_teardown
 			eval "type wpc_teardown" >/dev/null 2>&1 && wpc_teardown
 			eval "type lowi_teardown" >/dev/null 2>&1 && lowi_teardown
-			[ ! -f /etc/init.d/miwifi-roam ] || /etc/init.d/miwifi-roam stop
-			[ ! -f /etc/init.d/miwifi-discovery ] || /etc/init.d/miwifi-discovery stop
-			[ ! -f /etc/init.d/topomon ] || /etc/init.d/topomon stop
 			[ ! -f /etc/init.d/lbd ] || /etc/init.d/lbd stop
 			[ ! -f /etc/init.d/hyd ] || /etc/init.d/hyd stop
 			[ ! -f /etc/init.d/ssid_steering ] || /etc/init.d/ssid_steering stop
@@ -3263,28 +3245,20 @@ post_qcawificfg80211() {
 			# actually enabled and do nothing if it is not.
 			# disable cause of hyd start
 			local netmode="`uci -q get xiaoqiang.common.NETMODE`"
-			local mesh_version="`uci -q get xiaoqiang.common.MESH_VERSION`"
-			if [ -z "$mesh_version" -o "$mesh_version" = "1" ]; then
-				[ "whc_cap" = "$netmode" -o "whc_re" = "$netmode" ] && {
-					[ ! -f /etc/init.d/hyfi-bridging ] || /etc/init.d/hyfi-bridging start
-					[ ! -f /etc/init.d/ssid_steering ] || /etc/init.d/ssid_steering start
-					### miwifi add hyd restart after wifi restart, and skip wsplcd restart instead by trafficd whc_sync
-					[ "1" = "`nvram get QSDK_SON`" ] && {
-						[ ! -f /etc/init.d/wsplcd ] || /etc/init.d/wsplcd restart
-					} || {
-						logger -p 1 -t "wifi_xqwhc" " miwifi ignore wsplcd instead of trafficd whc_sync "
-						#[ ! -f /etc/init.d/wsplcd ] || /etc/init.d/wsplcd restart
-						[ ! -f /etc/init.d/hyd ] || /etc/init.d/hyd restart
-					}
+			[ "whc_cap" = "$netmode" -o "whc_re" = "$netmode" ] && {
+				[ ! -f /etc/init.d/hyfi-bridging ] || /etc/init.d/hyfi-bridging start
+				[ ! -f /etc/init.d/ssid_steering ] || /etc/init.d/ssid_steering start
+				### miwifi add hyd restart after wifi restart, and skip wsplcd restart instead by trafficd whc_sync
+				[ "1" = "`nvram get QSDK_SON`" ] && {
+					[ ! -f /etc/init.d/wsplcd ] || /etc/init.d/wsplcd restart
 				} || {
-					[ ! -f /etc/init.d/lbd ] || /etc/init.d/lbd start
+					logger -p 1 -t "wifi_xqwhc" " miwifi ignore wsplcd instead of trafficd whc_sync "
+					#[ ! -f /etc/init.d/wsplcd ] || /etc/init.d/wsplcd restart
+					[ ! -f /etc/init.d/hyd ] || /etc/init.d/hyd restart
 				}
-			else
-				[ ! -f /etc/init.d/miwifi-roam ] || /etc/init.d/miwifi-roam start
-				[ ! -f /usr/sbin/topomon_action.sh ] || /usr/sbin/topomon_action.sh update_mesh_param
-				[ ! -f /etc/init.d/miwifi-discovery ] || /etc/init.d/miwifi-discovery start
-				[ ! -f /etc/init.d/topomon ] || /etc/init.d/topomon restart
-			fi
+			} || {
+				[ ! -f /etc/init.d/lbd ] || /etc/init.d/lbd start
+			}
 
 			config_get_bool wps_pbc_extender_enhance qcawifi wps_pbc_extender_enhance 0
 			[ ${wps_pbc_extender_enhance} -ne 0 ] && {
@@ -3669,7 +3643,8 @@ detect_qcawificfg80211() {
 
 	local enable_cfg80211=`uci show qcacfg80211.config.enable |grep "qcacfg80211.config.enable='0'"`
 	[ -n "$enable_cfg80211" ] && echo "qcawificfg80211 configuration is disable" > /dev/console && return 1;
-
+	local bd_country_code=`bdata get CountryCode`
+	local nv_country_code=`nvram get CountryCode`
 	is_ftm=`cat /proc/xiaoqiang/ft_mode`
 	[ $is_ftm = 1 ] && ftm_qcawificfg80211 &&  return
 
@@ -3681,10 +3656,10 @@ detect_qcawificfg80211() {
 #		update_ini_for_lowmem QCA8074V2_i.ini
 #	fi
 
-#	if [ -e /sys/firmware/devicetree/base/MP_512 ]; then
-#		update_ini_for_512MP QCA8074_i.ini
-#		update_ini_for_512MP QCA8074V2_i.ini
-#	fi
+	if [ -e /sys/firmware/devicetree/base/MP_512 ]; then
+		update_ini_for_512MP QCA8074_i.ini
+		update_ini_for_512MP QCA8074V2_i.ini
+	fi
 
 	devidx=0
 	socidx=0
@@ -3697,6 +3672,7 @@ detect_qcawificfg80211() {
 	reload=0
 	hw_mode_detect=0
 	avoid_load=0
+	country_code="SG"
 	prefer_hw_mode_id="$(grep hw_mode_id \
 			/ini/internal/global_i.ini | awk -F '=' '{print $2}')"
 
@@ -3716,7 +3692,14 @@ detect_qcawificfg80211() {
 			esac
 		done
 	fi
-
+	if [ "$bd_country_code" == "EU" ]; then
+		if [ -n "$nv_country_code" ]; then
+			country_code="$nv_country_code"
+		fi
+		if [ "$nv_country_code" == "EU" ]; then
+			country_code="SG"
+		fi
+	fi
 	load_qcawificfg80211
 	config_load wireless
 	local board_name
@@ -3805,7 +3788,7 @@ detect_qcawificfg80211() {
 			esac
 		reload=1
 		fi
-	devidx24g=1
+	
 	radioidx=$devidx
 	ssid=`nvram get wl${radioidx}_ssid`
 	if [ $devidx = 0 ]; then
@@ -3864,11 +3847,11 @@ EOF
 	option bw 20
 EOF
 	fi
-    if [ $devidx = 0 ]; then
-        cat <<EOF
-    option bw 80
+	if [ $devidx = 0 ]; then
+		cat <<EOF
+	option bw 80
 EOF
-    fi
+	fi
 	cat <<EOF
 
 config wifi-iface
@@ -3883,27 +3866,12 @@ config wifi-iface
 EOF
 	if [ $devidx = 0 ]; then
 		cat <<EOF
-	option channel_block_list '52,56,60,64'
+	option channel_block_list '52,56,60,64,100,104,108,112,116,120,124,128,132,136,140,144,165'
 	option miwifi_mesh '1'
 EOF
 	fi
 	devidx=$(($devidx + 1))
 	done
-cat <<EOF
-config wifi-iface 'miot_2G'
-	option ifname 'wl13'
-	option network 'miot'
-	option encryption 'none'
-	option device 'wifi$devidx24g'
-	option mode 'ap'
-	option hidden '1'
-	option maxsta '20'
-	option ssid '25c829b1922d3123_miwifi'
-	option bsd '0'
-	option disabled '${wifi_disable}'
-	option ap_isolate '1'
-	option userswitch '1'
-EOF
 
 	if [ $reload == 1 ] ; then
 		if [ $avoid_load == 1 ]; then

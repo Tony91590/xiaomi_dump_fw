@@ -6,27 +6,17 @@
 
 USE_ENCODE=1
 
-mesh_version=$(uci -q get xiaoqiang.common.MESH_VERSION)
-cap_mode=$(uci -q get xiaoqiang.common.CAP_MODE)
-if [ "$ap_mode" = "whc_cap" ] || [ "$mesh_version" = "2" -a "$ap_mode" = "lanapmode" -a "$cap_mode" = "ap" ]; then
-    exit 0
-fi
 
-[ $mesh_version -gt 1 ] && {
-    . /lib/mimesh/mimesh_public.sh
-} || {
-    . /lib/xqwhc/xqwhc_public.sh
-}
+whcal isre || exit 0
+
+. /lib/xqwhc/xqwhc_public.sh
 
 xqwhc_lock="/var/run/xqwhc_wifi.lock"
-cfgf_origin="/var/run/xq_whc_sync"
-pid=$$
-cfgf="${cfgf_origin}_${pid}"
+cfgf="/var/run/xq_whc_sync"
 cfgf_fake="/var/run/xq_whc_sync_fake"
 son_changed=0   # wifi change, need wifi reset
 sys_changed=0
 miscan_changed=0
-iot_switch_changed=0
 B64_ENC=0
 
 SUPPORT_GUEST_ON_RE=0   # for now, we only support guest network on CAP. so we don not handle guest opts
@@ -60,63 +50,57 @@ wifi_parse()
         return 1
     }
 
-    local ifname_2g=$(uci -q get misc.wireless.ifname_2G)
-    local iface_2g=$(uci show wireless | grep "ifname=\'$ifname_2g\'" | awk -F"." '{print $2}')
-    local ifname_5g=$(uci -q get misc.wireless.ifname_5G)
-    local iface_5g=$(uci show wireless | grep "ifname=\'$ifname_5g\'" | awk -F"." '{print $2}')
-    local device_2g=$(uci -q get misc.wireless.if_2G)
-    local device_5g=$(uci -q get misc.wireless.if_5G)
     
-    ssid_2_cur="`uci -q get wireless.$iface_2g.ssid`"
-    pswd_2_cur="`uci -q get wireless.$iface_2g.key`"
+    ssid_2_cur="`uci -q get wireless.@wifi-iface[1].ssid`"
+    pswd_2_cur="`uci -q get wireless.@wifi-iface[1].key`"
     [ -z "pswd_2_cur" ] && pswd_2_cur=""
-    mgmt_2_cur="`uci -q get wireless.$iface_2g.encryption`"
-    hidden_2_cur="`uci -q get wireless.$iface_2g.hidden`"
+    mgmt_2_cur="`uci -q get wireless.@wifi-iface[1].encryption`"
+    hidden_2_cur="`uci -q get wireless.@wifi-iface[1].hidden`"
     [ -z "$hidden_2_cur" ] && hidden_2_cur=0
-    disabled_2_cur="`uci -q get wireless.$iface_2g.disabled`"
+    disabled_2_cur="`uci -q get wireless.@wifi-iface[1].disabled`"
     [ -z "$disabled_2_cur" ] && disabled_2_cur=0
-    local bsd_2_cur="`uci -q get wireless.$iface_2g.bsd`"
+    local bsd_2_cur="`uci -q get wireless.@wifi-iface[1].bsd`"
     [ -z "$bsd_2_cur" ] && bsd_2_cur=0
-    local sae_2_cur="`uci -q get wireless.$iface_2g.sae`"
+    local sae_2_cur="`uci -q get wireless.@wifi-iface[1].sae`"
     [ -z "$sae_2_cur" ] && sae_2_cur=""
-    local sae_pswd_2_cur="`uci -q get wireless.$iface_2g.sae_password`"
+    local sae_pswd_2_cur="`uci -q get wireless.@wifi-iface[1].sae_password`"
     [ -z "$sae_pswd_2_cur" ] && sae_pswd_2_cur=""
-    local ieee80211w_2_cur="`uci -q get wireless.$iface_2g.ieee80211w`"
+    local ieee80211w_2_cur="`uci -q get wireless.@wifi-iface[1].ieee80211w`"
     [ -z "$ieee80211w_2_cur" ] && ieee80211w_2_cur=""
 
     [ "$ssid_2_cur" != "$ssid_2" ] && {
         son_changed=1
         WHC_LOGI " xq_whc_sync, 2g ssid change $ssid_2_cur -> $ssid_2"
-        uci set wireless.$iface_2g.ssid="$ssid_2"
+        uci set wireless.@wifi-iface[1].ssid="$ssid_2"
     }
     [ "$pswd_2_cur" != "$pswd_2" ] && {
         son_changed=1
         WHC_LOGI " xq_whc_sync, 2g pswd change $pswd_2_cur -> $pswd_2"
-        if [ -n "$pswd_2" ]; then
-            uci set wireless.$iface_2g.key="$pswd_2"
-        else
-            uci -q delete wireless.$iface_2g.key
-        fi
+	if [ -n "$pswd_2" ]; then
+           uci set wireless.@wifi-iface[1].key="$pswd_2"
+	else
+	   uci -q delete wireless.@wifi-iface[1].key
+	fi
     }
     [ "$mgmt_2_cur" != "$mgmt_2" ] && {
         son_changed=1
         WHC_LOGI " xq_whc_sync, 2g mgmt change $mgmt_2_cur -> $mgmt_2"
-        uci set wireless.$iface_2g.encryption="$mgmt_2"
+        uci set wireless.@wifi-iface[1].encryption="$mgmt_2"
     }
     [ "$hidden_2_cur" != "$hidden_2" ] && {
         son_changed=1
         WHC_LOGI " xq_whc_sync, 2g hidden change $hidden_2_cur -> $hidden_2"
-        uci set wireless.$iface_2g.hidden="$hidden_2"
+        uci set wireless.@wifi-iface[1].hidden="$hidden_2"
     }
     [ "$disabled_2_cur" != "$disabled_2" ] && {
         son_changed=1
         WHC_LOGI " xq_whc_sync, 2g disabled change $disabled_2_cur -> $disabled_2"
-        uci set wireless.$iface_2g.disabled="$disabled_2"
+        uci set wireless.@wifi-iface[1].disabled="$disabled_2"
     }
     [ "$bsd_2" != "$bsd_2_cur" ] && {
          son_changed=1
          WHC_LOGI " xq_whc_sync, 2g bsd change $bsd_2_cur -> $bsd_2"
-         uci set wireless.$iface_2g.bsd="$bsd_2"
+         uci set wireless.@wifi-iface[1].bsd="$bsd_2"
          uci set lbd.config.PHYBasedPrioritization="$bsd_2"
          uci commit lbd
     }
@@ -124,27 +108,27 @@ wifi_parse()
          son_changed=1
          WHC_LOGI " xq_whc_sync, 2g sae change $sae_2_cur -> $sae_2"
          if [ -n "$sae_2" ];then
-            uci set wireless.$iface_2g.sae="$sae_2"
+            uci set wireless.@wifi-iface[1].sae="$sae_2"
          else
-            uci -q delete wireless.$iface_2g.sae
+            uci -q delete wireless.@wifi-iface[1].sae
          fi
     }
     [ "$sae_pswd_2" != "$sae_pswd_2_cur" ] && {
          son_changed=1
          WHC_LOGI " xq_whc_sync, 2g sae password change $sae_pswd_2_cur -> $sae_pswd_2"
          if [ -n "$sae_pswd_2" ];then
-            uci set wireless.$iface_2g.sae_password="$sae_pswd_2"
+            uci set wireless.@wifi-iface[1].sae_password="$sae_pswd_2"
          else
-            uci -q delete wireless.$iface_2g.sae_password
+            uci -q delete wireless.@wifi-iface[1].sae_password
          fi
     }
     [ "$ieee80211w_2" != "$ieee80211w_2_cur" ] && {
          son_changed=1
          WHC_LOGI " xq_whc_sync, 2g ieee80211w change $ieee80211w_2_cur -> $ieee80211w_2"
          if [ -n "$ieee80211w_2" ];then
-            uci set wireless.$iface_2g.ieee80211w="$ieee80211w_2"
+            uci set wireless.@wifi-iface[1].ieee80211w="$ieee80211w_2"
          else
-            uci -q delete wireless.$iface_2g.ieee80211w
+            uci -q delete wireless.@wifi-iface[1].ieee80211w
          fi
     }
 
@@ -177,57 +161,57 @@ wifi_parse()
     }
 
     
-    ssid_5_cur="`uci -q get wireless.$iface_5g.ssid`"
-    pswd_5_cur="`uci -q get wireless.$iface_5g.key`"
+    ssid_5_cur="`uci -q get wireless.@wifi-iface[0].ssid`"
+    pswd_5_cur="`uci -q get wireless.@wifi-iface[0].key`"
     [ -z "pswd_5_cur" ] && pswd_5_cur=""
-    mgmt_5_cur="`uci -q get wireless.$iface_5g.encryption`"
-    hidden_5_cur="`uci -q get wireless.$iface_5g.hidden`"
+    mgmt_5_cur="`uci -q get wireless.@wifi-iface[0].encryption`"
+    hidden_5_cur="`uci -q get wireless.@wifi-iface[0].hidden`"
     [ -z "$hidden_5_cur" ] && hidden_5_cur=0
-    disabled_5_cur="`uci -q get wireless.$iface_5g.disabled`"
+    disabled_5_cur="`uci -q get wireless.@wifi-iface[0].disabled`"
     [ -z "$disabled_5_cur" ] && disabled_5_cur=0
-    local bsd_5_cur="`uci -q get wireless.$iface_5g.bsd`"
+    local bsd_5_cur="`uci -q get wireless.@wifi-iface[0].bsd`"
     [ -z "$bsd_5_cur" ] && bsd_5_cur=0
-    local sae_5_cur="`uci -q get wireless.$iface_5g.sae`"
+    local sae_5_cur="`uci -q get wireless.@wifi-iface[0].sae`"
     [ -z "$sae_5_cur" ] && sae_5_cur=""
-    local sae_pswd_5_cur="`uci -q get wireless.$iface_5g.sae_password`"
+    local sae_pswd_5_cur="`uci -q get wireless.@wifi-iface[0].sae_password`"
     [ -z "$sae_pswd_5_cur" ] && sae_pswd_5_cur=""
-    local ieee80211w_5_cur="`uci -q get wireless.$iface_5g.ieee80211w`"
+    local ieee80211w_5_cur="`uci -q get wireless.@wifi-iface[0].ieee80211w`"
     [ -z "$ieee80211w_5_cur" ] && ieee80211w_5_cur=""
 
 
     [ "$ssid_5_cur" != "$ssid_5" ] && {
         son_changed=1
         WHC_LOGI " xq_whc_sync, 5g ssid change $ssid_5_cur -> $ssid_5"
-        uci set wireless.$iface_5g.ssid="$ssid_5"
+        uci set wireless.@wifi-iface[0].ssid="$ssid_5"
     }
     [ "$pswd_5_cur" != "$pswd_5" ] && {
         son_changed=1
         WHC_LOGI " xq_whc_sync, 5g pswd change $pswd_5_cur -> $pswd_5"
         if [ -n "$pswd_5" ]; then
-           uci set wireless.$iface_5g.key="$pswd_5"
+           uci set wireless.@wifi-iface[0].key="$pswd_5"
         else
-           uci -q delete wireless.$iface_5g.key
+           uci -q delete wireless.@wifi-iface[0].key
         fi
     }
     [ "$mgmt_5_cur" != "$mgmt_5" ] && {
         son_changed=1
         WHC_LOGI " xq_whc_sync, 5g mgmt change $mgmt_5_cur -> $mgmt_5"
-        uci set wireless.$iface_5g.encryption="$mgmt_5"
+        uci set wireless.@wifi-iface[0].encryption="$mgmt_5"
     }
     [ "$hidden_5_cur" != "$hidden_5" ] && {
         son_changed=1
         WHC_LOGI " xq_whc_sync, 5g hidden change $hidden_5_cur -> $hidden_5"
-        uci set wireless.$iface_5g.hidden="$hidden_5"
+        uci set wireless.@wifi-iface[0].hidden="$hidden_5"
     }
     [ "$disabled_5_cur" != "$disabled_5" ] && {
         son_changed=1
         WHC_LOGI " xq_whc_sync, 5g disabled change $disabled_5_cur -> $disabled_5"
-        uci set wireless.$iface_5g.disabled="$disabled_5"
+        uci set wireless.@wifi-iface[0].disabled="$disabled_5"
     }
     [ "$bsd_5" != "$bsd_5_cur" ] && {
          son_changed=1
          WHC_LOGI " xq_whc_sync, 5g bsd change $bsd_5_cur -> $bsd_5"
-         uci set wireless.$iface_5g.bsd="$bsd_5"
+         uci set wireless.@wifi-iface[0].bsd="$bsd_5"
          uci set lbd.config.PHYBasedPrioritization="$bsd_5"
          uci commit lbd
     }
@@ -235,27 +219,27 @@ wifi_parse()
          son_changed=1
          WHC_LOGI " xq_whc_sync, 5g sae change $sae_5_cur -> $sae_5"
          if [ -n "$sae_5" ];then
-            uci set wireless.$iface_5g.sae="$sae_5"
+            uci set wireless.@wifi-iface[0].sae="$sae_5"
          else
-            uci -q delete wireless.$iface_5g.sae
+            uci -q delete wireless.@wifi-iface[0].sae
          fi
     }
     [ "$sae_pswd_5" != "$sae_pswd_5_cur" ] && {
          son_changed=1
          WHC_LOGI " xq_whc_sync, 5g sae password change $sae_pswd_5_cur -> $sae_pswd_5"
          if [ -n "$sae_pswd_5" ];then
-            uci set wireless.$iface_5g.sae_password="$sae_pswd_5"
+            uci set wireless.@wifi-iface[0].sae_password="$sae_pswd_5"
          else
-            uci -q delete wireless.$iface_5g.sae_password
+            uci -q delete wireless.@wifi-iface[0].sae_password
          fi
     }
     [ "$ieee80211w_5" != "$ieee80211w_5_cur" ] && {
          son_changed=1
          WHC_LOGI " xq_whc_sync, 5g ieee80211w change $ieee80211w_5_cur -> $ieee80211w_5"
          if [ -n "$ieee80211w_5" ];then
-            uci set wireless.$iface_5g.ieee80211w="$ieee80211w_5"
+            uci set wireless.@wifi-iface[0].ieee80211w="$ieee80211w_5"
          else
-            uci -q delete wireless.$iface_5g.ieee80211w
+            uci -q delete wireless.@wifi-iface[0].ieee80211w
          fi
     }
     
@@ -415,43 +399,43 @@ wifi_parse()
     local bw_2="`cat $cfgf | grep -w "bw_2g" | awk -F ":=" '{print $2}'`"
     local txbf_2="`cat $cfgf | grep -w "txbf_2g" | awk -F ":=" '{print $2}'`"
     local ax_2="`cat $cfgf | grep -w "ax_2g" | awk -F ":=" '{print $2}'`"
-    local txp_2_cur="`uci -q get wireless.$device_2g.txpwr`"
+    local txp_2_cur="`uci -q get wireless.wifi1.txpwr`"
     [ -z "$txp_2_cur" ] && txp_2_cur="max"
-    local ch_2_cur="`uci -q get wireless.$device_2g.channel`"
+    local ch_2_cur="`uci -q get wireless.wifi1.channel`"
     [ -z "$ch_2_cur" -o "0" = "$ch_2_cur" ] && ch_2_cur="auto"
-    local bw_2_cur="`uci -q get wireless.$device_2g.bw`"
+    local bw_2_cur="`uci -q get wireless.wifi1.bw`"
     [ -z "$bw_2_cur" ] && bw_2_cur=0
-    local txbf_2_cur="`uci -q get wireless.$device_2g.txbf`"
+    local txbf_2_cur="`uci -q get wireless.wifi1.txbf`"
     [ -z "$txbf_2_cur" ] && txbf_2_cur=3
-    local ax_2_cur="`uci -q get wireless.$device_2g.ax`"
+    local ax_2_cur="`uci -q get wireless.wifi1.ax`"
     [ -z "$ax_2_cur" ] && ax_2_cur=1
 
     [ "$ch_2" != "$ch_2_cur" ] && {
-        uci set wireless.$device_2g.channel="$ch_2"
+        uci set wireless.wifi1.channel="$ch_2"
         # check real channel, if SAME then should save one wifi reset
         local ch_2_act="`iwlist wl1 channel | grep -Eo "\(Channel.*\)" | grep -Eo "[1-9]+"`"
         [ "$ch_2" != "$ch_2_act" ] && {
             son_changed=1
-            WHC_LOGI " xq_whc_sync, $device_2g dev change channel $ch_2_act -> $ch_2 "
+            WHC_LOGI " xq_whc_sync, wifi1 dev change channel $ch_2_act -> $ch_2 "
         }
     }
 
     [ "$txp_2" != "$txp_2_cur" -o "$bw_2" != "$bw_2_cur" ] && {
         son_changed=1
-        WHC_LOGI " xq_whc_sync, $device_2g dev change $txp_2_cur:$bw_2_cur -> $txp_2:$bw_2 "
-        uci set wireless.$device_2g.txpwr="$txp_2"
-        uci set wireless.$device_2g.bw="$bw_2"
+        WHC_LOGI " xq_whc_sync, wifi1 dev change $txp_2_cur:$bw_2_cur -> $txp_2:$bw_2 "
+        uci set wireless.wifi1.txpwr="$txp_2"
+        uci set wireless.wifi1.bw="$bw_2"
     }
 
     [ -n "$txbf_2" -a "$txbf_2" -ne "$txbf_2_cur" ] && {
         son_changed=1
-        WHC_LOGI " xq_whc_sync, $device_2g dev change txbf [$txbf_2_cur] -> [$txbf_2]"
-        uci set wireless.$device_2g.txbf="$txbf_2"
+        WHC_LOGI " xq_whc_sync, wifi1 dev change txbf [$txbf_2_cur] -> [$txbf_2]"
+        uci set wireless.wifi1.txbf="$txbf_2"
     }
     [ -n "$ax_2" -a "$ax_2" -ne "$ax_2_cur" ] && {
         son_changed=1
-        WHC_LOGI " xq_whc_sync, $device_2g dev change ax [$ax_2_cur] -> [$ax_2]"
-        uci set wireless.$device_2g.ax="$ax_2"
+        WHC_LOGI " xq_whc_sync, wifi1 dev change ax [$ax_2_cur] -> [$ax_2]"
+        uci set wireless.wifi1.ax="$ax_2"
     }
 
     local txp_5="`cat $cfgf | grep -w "txpwr_5g" | awk -F ":=" '{print $2}'`"
@@ -460,48 +444,48 @@ wifi_parse()
     local bw_5="`cat $cfgf | grep -w "bw_5g" | awk -F ":=" '{print $2}'`"
     local txbf_5="`cat $cfgf | grep -w "txbf_5g" | awk -F ":=" '{print $2}'`"
     local ax_5="`cat $cfgf | grep -w "ax_5g" | awk -F ":=" '{print $2}'`"
-    local txp_5_cur="`uci -q get wireless.$device_5g.txpwr`"
+    local txp_5_cur="`uci -q get wireless.wifi0.txpwr`"
     [ -z "$txp_5_cur" ] && txp_5_cur="max"
-    local ch_5_cur="`uci -q get wireless.$device_5g.channel`"
+    local ch_5_cur="`uci -q get wireless.wifi0.channel`"
     [ -z "$ch_5_cur" -o "0" = "$ch_5_cur" ] && ch_5_cur="auto"
-    local bw_5_cur="`uci -q get wireless.$device_5g.bw`"
+    local bw_5_cur="`uci -q get wireless.wifi0.bw`"
     [ -z "$bw_5_cur" ] && bw_5_cur=0
-    local txbf_5_cur="`uci -q get wireless.$device_5g.txbf`"
+    local txbf_5_cur="`uci -q get wireless.wifi0.txbf`"
     [ -z "$txbf_5_cur" ] && txbf_5_cur=3
-    local ax_5_cur="`uci -q get wireless.$device_5g.ax`"
+    local ax_5_cur="`uci -q get wireless.wifi0.ax`"
     [ -z "$ax_5_cur" ] && ax_5_cur=1
     local support160="`cat $cfgf | grep -w "support160" | awk -F ":=" '{print $2}'`"
 
     [ "$ch_5" != "$ch_5_cur" ] && {
-        uci set wireless.$device_5g.channel="$ch_5"
+        uci set wireless.wifi0.channel="$ch_5"
         # check real channel, if SAME then should save one wifi reset
         local ch_5_act="`iwlist wl0 channel | grep -Eo "\(Channel.*\)" | grep -Eo "[1-9]+"`"
         [ "$ch_5" != "$ch_5_act" ] && {
             son_changed=1
-            WHC_LOGI " xq_whc_sync, $device_5g dev change channel $ch_5_act -> $ch_5 "
+            WHC_LOGI " xq_whc_sync, wifi0 dev change channel $ch_5_act -> $ch_5 "
         }
     }
     [ "$txp_5" != "$txp_5_cur" ] && {
         son_changed=1
-        WHC_LOGI " xq_whc_sync, $device_5g dev change $txp_5_cur -> $txp_5"
-        uci set wireless.$device_5g.txpwr="$txp_5"
+        WHC_LOGI " xq_whc_sync, wifi0 dev change $txp_5_cur -> $txp_5"
+        uci set wireless.wifi0.txpwr="$txp_5"
     }
 
     [ "$bw_5" != "$bw_5_cur" ] && {
         if [ "$bw_5" != "0" ]; then
             son_changed=1
-            WHC_LOGI " xq_whc_sync, $device_5g dev change $bw_5_cur -> $bw_5"
-            uci set wireless.$device_5g.bw="$bw_5"
+            WHC_LOGI " xq_whc_sync, wifi0 dev change $bw_5_cur -> $bw_5"
+            uci set wireless.wifi0.bw="$bw_5"
         else
             if [ "$support160" = "1" ]; then
                 son_changed=1
-                WHC_LOGI " xq_whc_sync, $device_5g dev change $bw_5_cur -> $bw_5"
-                uci set wireless.$device_5g.bw="$bw_5"
+                WHC_LOGI " xq_whc_sync, wifi0 dev change $bw_5_cur -> $bw_5"
+                uci set wireless.wifi0.bw="$bw_5"
             else
                 if [ "$bw_5_cur" != "80" ]; then
                     son_changed=1
                     WHC_LOGI " xq_whc_sync, cap do not support 160m, cap 0 means 80, $bw_5_cur -> 80"
-                    uci set wireless.$device_5g.bw='80'
+                    uci set wireless.wifi0.bw='80'
                 fi
             fi
         fi
@@ -509,24 +493,14 @@ wifi_parse()
 
     [ -n "$txbf_5" -a "$txbf_5" -ne "$txbf_5_cur" ] && {
         son_changed=1
-        WHC_LOGI " xq_whc_sync, $device_5g dev change txbf [$txbf_5_cur] -> [$txbf_5]"
-        uci set wireless.$device_5g.txbf="$txbf_5"
+        WHC_LOGI " xq_whc_sync, wifi0 dev change txbf [$txbf_5_cur] -> [$txbf_5]"
+        uci set wireless.wifi0.txbf="$txbf_5"
     }
 
     [ -n "$ax_5" -a "$ax_5" -ne "$ax_5_cur" ] && {
         son_changed=1
-        WHC_LOGI " xq_whc_sync, $device_5g dev change ax [$ax_5_cur] -> [$ax_5]"
-        uci set wireless.$device_5g.ax="$ax_5"
-    }
-
-    #iot switch
-    local iot_switch_cur="`uci -q get wireless.miot_2G.userswitch`"
-    [ -z "$iot_switch_cur" ] && iot_switch_cur=1
-    local iot_switch="`cat $cfgf | grep -w "iot_switch" | awk -F ":=" '{print $2}'`"
-    [ -n "$iot_switch" -a "$iot_switch" -ne "$iot_switch_cur" ] && {
-        iot_switch_changed=1
-        WHC_LOGI " xq_whc_sync, iot user switch changed [$iot_switch_cur] -> [$iot_switch]"
-        uci set wireless.miot_2G.userswitch="$iot_switch"
+        WHC_LOGI " xq_whc_sync, wifi0 dev change ax [$ax_5_cur] -> [$ax_5]"
+        uci set wireless.wifi0.ax="$ax_5"
     }
 
     uci commit wireless && sync
@@ -555,8 +529,6 @@ guest_parse()
         return 1
     }
 
-    local device_5g=$(uci -q get misc.wireless.if_5G)
-
     # if guest section no exist, create first
     local disab_cur=0
     local ssid_cur=""
@@ -573,7 +545,7 @@ guest_parse()
         WHC_LOGI " xq_whc_sync, guest section newly add, TODO son options"
         disab_cur=1;
         uci set wireless.$gst_sect=wifi-iface
-        uci set wireless.$gst_sect.device="$device_5g"
+        uci set wireless.$gst_sect.device='wifi0'
         uci set wireless.$gst_sect.mode='ap'
         uci set wireless.$gst_sect.ifname='wl3'
         ##### TODO, guest iface options
@@ -620,6 +592,7 @@ system_parse()
         WHC_LOGI " xq_whc_sync, system timezone change $timezone_cur -> $timezone"
         uci set system.@system[0].timezone="$timezone"
         uci commit system
+        echo "$timezone" > /tmp/TZ
     }
 
     local ota_auto="`cat $cfgf | grep -w "ota_auto" | awk -F ":=" '{print $2}'`"
@@ -660,6 +633,17 @@ system_parse()
         }
     }
 
+    local lang="`cat $cfgf | grep -w "main_lang" | awk -F ":=" '{print $2}'`"
+    [ -z "$lang" ] && lang=en
+    local lang_cur="`uci -q get luci.main.lang`"
+    [ -z "$lang_cur" ] && lang_cur=en
+    [ "$lang" != "$lang_cur" ] && {
+        sys_changed=1
+        WHC_LOGI " xq_whc_sync, system lang change $lang_cur -> $lang"
+        uci set luci.main.lang="$lang"
+        uci commit luci
+    }
+
     return 0
 }
 
@@ -677,54 +661,17 @@ miscan_parse()
     return 0
 }
 
-bak_config()
-{
-    cp "$cfgf_origin" "$cfgf"
-}
-
-clean_config()
-{
-    rm "$cfgf"
-}
-
-bak_config
-
 # must call guest_parse first
 [ "$SUPPORT_GUEST_ON_RE" -gt 0 ] && {
-    guest_parse
-    local guest_ret=$?
-    if [ "$guest_ret" -gt 0 ]; then
-        clean_config
-        exit $guest_ret
-    fi
+    guest_parse || exit $?
 }
-wifi_parse
-wifi_ret=$?
-if [ "$wifi_ret" -gt 0 ]; then
-    clean_config
-    return $wifi_ret
-fi
+wifi_parse || return $?
 system_parse
 miscan_parse
 
 if [ "$miscan_changed" -gt 0 ]; then
     WHC_LOGI " xq_whc_sync, miscan_changed, restart miscan!"
     (/etc/init.d/scan restart) &
-fi
-
-if [ "$iot_switch_changed" -gt 0 ]; then
-    WHC_LOGI " xq_whc_sync, iot user switch changed!"
-    userswitch="`uci -q get wireless.miot_2G.userswitch`"
-    miot_2g_ifname="`uci -q get misc.wireless.iface_miot_2g_ifname`"
-    bindstatus="`uci -q get wireless.miot_2G.bindstatus`"
-    miot_2g_device="`uci -q get wireless.miot_2G.device`"
-    if [ "$bindstatus" = "1" ]; then
-        if [ "$userswitch" != "0" ]; then
-            hostapd_cli -i "$miot_2g_ifname" -p /var/run/hostapd-$miot_2g_device enable
-        else
-            hostapd_cli -i "$miot_2g_ifname" -p /var/run/hostapd-$miot_2g_device disable
-        fi
-    fi
 fi
 
 if [ "$sys_changed" -gt 0 ]; then
@@ -739,11 +686,12 @@ fi
 
 
 if [ "$son_changed" -gt 0 ]; then
-        ( lock "$xqwhc_lock";
-        wifi;
-        lock -u "$xqwhc_lock" ) &
+    WHC_LOGI " xq_whc_sync, son_changed, need reset son!"
+    ( lock "$xqwhc_lock";
+    /etc/init.d/repacd restart_in_re_mode;
+    lock -u "$xqwhc_lock" ) &
+
 else
     WHC_LOGD " xq_whc_sync, son NO change!"
 fi
 
-clean_config

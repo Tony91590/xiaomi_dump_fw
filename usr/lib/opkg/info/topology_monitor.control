@@ -1,8 +1,0 @@
-Package: topology_monitor
-Version: 1.0-a
-Depends: libc, libubus, libblobmsg-json, ubusd, libubox, libiw, libuci, libpthread
-Source: package/miwifi/topology_monitor
-Section: net
-Architecture: all
-Installed-Size: 19484
-Description:  xiaomi mesh topology monitor.

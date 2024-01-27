@@ -44,7 +44,7 @@ config misc wireless
 	list IFACE_LIST 'iface_2g'
 	list IFACE_LIST 'iface_5g'
 	list IFACE_LIST 'iface_guest_2g'
-	list IFACE_LIST 'iface_miot_2g'
+	list IFACE_LIST 'iface_ready_2g'
 	option iface_2g_ifname 'wl1'
 	option iface_2g_deviceidx 'device_2g'
 	option iface_2g_network 'lan'
@@ -55,10 +55,6 @@ config misc wireless
 	option iface_guest_2g_ifname 'wl14'
 	option iface_guest_2g_deviceidx 'device_2g'
 	option iface_guest_2g_network 'guest'
-    option iface_miot_2g_name 'miot_2G'
-    option iface_miot_2g_ifname 'wl13'
-    option iface_miot_2g_deviceidx 'device_2g'
-    option iface_miot_2g_network 'miot'
 	list APCLI_LIST 'apcli_2g'
 	list APCLI_LIST 'apcli_5g'
 	option apcli_2g_ifname 'wl11'
@@ -155,7 +151,3 @@ config misc backhauls
 	option backhaul '5g'
 	option backhaul_5g_sta_iface 'wl01'
 	option backhaul_5g_ap_iface 'wl5'
-
-config misc mesh
-	list version '2'
-	option max_node_count 9

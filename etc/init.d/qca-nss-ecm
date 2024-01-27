@@ -46,22 +46,7 @@ get_front_end_mode() {
 	esac
 }
 
-enable_bypass_routing() {
-	local gw=$(uci -q get dhcp.lan.router)
-	local dns1=$(uci -q get dhcp.lan.dns1)
-	local dns2=$(uci -q get dhcp.lan.dns2)
-	local lanip=$(uci -q get network.lan.ipaddr)
-
-	[ -n "$gw" -a "$gw" != "$lanip" ] && return 0
-	[ -n "$dns1" -a "$dns1" != "$lanip" ] && return 0
-	[ -n "$dns2" -a "$dns2" != "$lanip" ] && return 0
-
-	return 1
-}
-
 support_bridge() {
-	enable_bypass_routing && return 1
-
 	#NSS support bridge acceleration
 	[ -d /sys/kernel/debug/ecm/ecm_nss_ipv4 ] && return 0
 	#SFE doesn't support bridge acceleration

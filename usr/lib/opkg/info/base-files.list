@@ -9,7 +9,6 @@
 /etc/hotplug.d/iface/85-wanip_check
 /usr/sbin/wanlinkprobe
 /etc/resolv.conf
-/etc/crontabs/root-R2200
 /usr/sbin/ban_admin
 /usr/sbin/recovery_info_sync.sh
 /usr/sbin/update_vas_conf.lua
@@ -34,7 +33,6 @@
 /lib/upgrade/platform.sh
 /usr/sbin/vas_security.lua
 /etc/shells
-/usr/sbin/miot_ip_conflict.lua
 /bin/flash_check.sh
 /lib/config_post_ota/parentalctl_post_ota.sh
 /lib64
@@ -42,6 +40,7 @@
 /etc/device_info
 /usr/sbin/set_wps_state
 /usr/lib64
+/etc/opkg/keys/8820a030d8f6217
 /etc/protocols
 /etc/uci-defaults/12_network-generate-ula
 /usr/sbin/mivpn.sh
@@ -55,6 +54,7 @@
 /usr/sbin/supervisord
 /usr/sbin/startscene.lua
 /usr/sbin/ddnsd
+/etc/config/server_mapping
 /usr/sbin/gensmartdns.sh
 /lib/config_post_ota/vasinfo_post_ota.sh
 /usr/sbin/logupload.lua
@@ -84,7 +84,6 @@
 /usr/sbin/kill_plugin_process.sh
 /usr/lib/lua/json.lua
 /usr/sbin/setchanauto.sh
-/etc/opkg/keys/bc30a5b312bbdc6a
 /etc/shadow
 /etc/rc.common
 /sbin/setmac
@@ -139,6 +138,7 @@
 /lib/upgrade/nand.sh
 /etc/rc.button/failsafe
 /lib/upgrade/fwtool.sh
+/etc/config/country_mapping
 /etc/services
 /usr/sbin/get_router_kv.lua
 /etc/config/vas_user
@@ -207,7 +207,6 @@
 /sbin/hwversion
 /usr/share/xiaoqiang/xiaoqiang_version
 /lib/config_post_ota/wifishare_post_ota.sh
-/lib/config_post_ota/ipv6_post_ota.sh
 /sbin/wifi
 /etc/iptv/route
 /etc/profile
@@ -234,6 +233,7 @@
 /usr/sbin/dhcpc_do_opt43_act.sh
 /etc/init.d/boot
 /usr/sbin/phyhelper
+/usr/sbin/reset_wpa_supp
 /etc/config/misc.R2200
 /lib/functions/boot.sh
 /usr/sbin/config_pre_ota.sh

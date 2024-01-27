@@ -1,8 +1,0 @@
-Package: mobile_accel
-Version: 1.0-1.0
-Depends: libc
-Source: package/miwifi/mobile_accel
-Section: data
-Architecture: all
-Installed-Size: 3333
-Description:  mobile_accel
